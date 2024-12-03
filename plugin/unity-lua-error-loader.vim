@@ -1,35 +1,78 @@
 " Author: xebecnan https://github.com/xebecnan
 " Description: utility functions for loading error messages from Unity
 
+fun! s:GetErrorDir()
+    if !exists('g:unity_lua_error_dir')
+        return ''
+    else
+        return g:unity_lua_error_dir
+    endif
+endfun
+
 function! s:ListFiles(directory)
     " Get the list of files in the specified directory
     let files = split(glob(a:directory . '/*'), '\n')
     return files
 endfunction
 
-function! s:ChooseFile(files)
-    " Create a temporary buffer to display the list of files
+function! s:UnityLuaErrors()
+    let dir = s:GetErrorDir()
+    if dir == ''
+        echoerr 'Error directory not set'
+        return
+    endif
+
+    " check g:unity_lua_error_formatter
+    if !exists('g:unity_lua_error_formatter')
+        echoerr 'Error formatter not set'
+        return
+    endif
+
+    let files = s:ListFiles(dir)
+    " use fzf#run to display the list of files
+    call fzf#run({
+        \ 'source': files,
+        \ 'sink': function('s:SelectFile'),
+        \ 'options': '--ansi',
+        \ 'header': 'Choose a file',
+        \ 'prompt': '>'
+        \ })
+endfunction
+
+function! s:SelectFile(filename)
+    " Create a new temporary buffer
     new
-    setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile nowrap
-    setlocal nomodifiable
 
-    " Populate the buffer with the list of files
-    call append(0, a:files)
+    " Make the buffer unlisted
+    setlocal nobuflisted
 
-    " Set up key mappings for choosing a file
-    nnoremap <buffer> <CR> :call <SID>SelectFile(line('.'))<CR>
-    nnoremap <buffer> q :q<CR>
+    " Set the buffer type to 'nofile' to indicate it's not associated with a file
+    setlocal buftype=nofile
 
-    " Start in normal mode
-    startinsert
-endfunction
+    " Hide the buffer when switching away from it
+    setlocal bufhidden=hide
 
-function! s:SelectFile(line)
+    " Don't create a swap file for this buffer
+    setlocal noswapfile
+
+    " Make the buffer modifiable so we can edit it
+    setlocal modifiable
+
+    " Read the contents of the specified file into the buffer
+    " execute '0read' a:filename
+
+    " Optionally, move the cursor to the top of the buffer
+    " normal! gg
+
+    exec '%!' . g:unity_lua_error_formatter . ' ' . a:filename
+
+    cgetexpr getline(1, '$')
+
     " Close the temporary buffer
-    q
+    quit
 
-    " Open the selected file
-    execute 'edit' a:line
+    " Open the quickfix window
+    copen
 endfunction
 
-command! -nargs=1 ChooseFile call s:ChooseFile(s:ListFiles(<q-args>))
+command! -nargs=0 UnityLuaErrors call s:UnityLuaErrors()
