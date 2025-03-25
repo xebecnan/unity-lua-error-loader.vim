@@ -29,14 +29,26 @@ function! s:UnityLuaErrors()
     endif
 
     let files = s:ListFiles(dir)
-    " use fzf#run to display the list of files
-    call fzf#run({
-        \ 'source': files,
-        \ 'sink': function('s:SelectFile'),
-        \ 'options': '--ansi',
-        \ 'header': 'Choose a file',
-        \ 'prompt': '>'
-        \ })
+    if empty(files)
+        echoerr 'No error files found in directory'
+        return
+    endif
+
+    " Create menu items with indexes
+    let menu = ['Choose an error file:']
+    let idx = 1
+    for file in files
+        call add(menu, idx . '. ' . fnamemodify(file, ':t'))
+        let idx += 1
+    endfor
+
+    let choice = inputlist(menu)
+    if choice < 1 || choice > len(files)
+        echo 'Selection cancelled'
+        return
+    endif
+
+    call s:SelectFile(files[choice - 1])
 endfunction
 
 function! s:SelectFile(filename)
